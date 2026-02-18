@@ -1,0 +1,180 @@
+@startuml
+allowmixing
+skinparam classAttributeIconSize 0
+
+' =========================
+' Core Controller
+' =========================
+class SmartMoveCentralController {
+    - vehicles : Map<String, Vehicle>
+    - auditService : AuditService
+    --
+    + SmartMoveCentralController()
+    + registerVehicle(v : Vehicle) : void
+    + getVehicle(id : String) : Vehicle
+    + changeState(v : Vehicle, s : VehicleState) : void
+    - validateTransition(v : Vehicle, s : VehicleState) : void
+}
+
+' =========================
+' Vehicle
+' =========================
+class Vehicle {
+    - id : String
+    - type : VehicleType
+    - state : VehicleState
+    - batteryPercentage : double
+    - temperature : double
+    - latitude : double
+    - longitude : double
+    - price: double
+    - zone: CityRegulation
+    - zones: CityRegulation[]
+    --
+    + Vehicle(id : String, type : VehicleType)
+    + updateTelemetry(battery : double, temp : double, lat : double, lon : double) : void
+    + getState() : VehicleState
+    + setState(s : VehicleState) : void
+    + getId() : String
+    + getType() : VehicleType
+    + getPrice() : double
+    + getZone(): CityRegulation
+
+}
+
+' =========================
+' Telemetry
+' =========================
+class TelemetryData {
+    + vehicleId : String
+    + battery : double
+    + temperature : double
+    + latitude : double
+    + longitude : double
+}
+
+interface CityRegulation {
+    + validateUnlock(vehicle: Vehicle): void
+    + validateZone(vehicle: Vehicle): void
+    + applyFinalCharges(basePrice: double): double
+}
+
+class TelemetryQueue {
+    - queue : Queue<TelemetryData>
+    --
+    + put(data : TelemetryData) : void
+    + take() : TelemetryData
+}
+
+class TelemetryProcessor {
+    - controller : SmartMoveCentralController
+    - running : boolean
+    --
+    + TelemetryProcessor(c : SmartMoveCentralController)
+    + run() : void
+    + shutdown() : void
+}
+
+class RomeRegulation {
+    + validateUnlock(vehicle: Vehicle): void
+    + validateZone(vehicle: Vehicle): void
+    + applyFinalCharges(basePrice: double): double
+}
+
+
+class MilanRegulation {
+    + validateUnlock(vehicle: Vehicle): void
+    + validateZone(vehicle: Vehicle): void
+    + applyFinalCharges(basePrice: double): double
+}
+
+
+class LondonRegulation {
+    + validateUnlock(vehicle: Vehicle): void
+    + validateZone(vehicle: Vehicle): void
+    + applyFinalCharges(basePrice: double): double
+}
+
+class HelmetSensor {
+    + isHelmetPresent(): boolean
+}
+
+class ZoneService {
+    - MIN_LATITUDE: double
+    - MAX_LATITUDE: double
+    - MIN_LONGITUDE: double
+    - MAX_LONGITUDE: double
+    --
+    + isRestricted(latitude: double, longitude: double): boolean
+}
+
+RomeRegulation --|> CityRegulation
+
+MilanRegulation --|> CityRegulation
+
+LondonRegulation --|> CityRegulation
+
+Vehicle --> CityRegulation
+
+MilanRegulation ..> HelmetSensor
+
+RomeRegulation ..> ZoneService
+
+' =========================
+' Persistence & Audit
+' =========================
+class AuditService {
+    - sequenceId : long
+    - previousChecksum : String
+    --
+    + logStateChange(vehicleId : String, state : VehicleState) : void
+}
+
+class ManualJSONPersistence {
+    + saveVehicles(vehicles : Map<String, Vehicle>, filename : String) : void
+}
+
+' =========================
+' Enums
+' =========================
+enum VehicleType {
+    BICYCLE
+    ELECTRIC_SCOOTER
+    MOPED
+}
+
+enum VehicleState {
+    AVAILABLE
+    RESERVED
+    IN_USE
+    MAINTENANCE
+    EMERGENCY_LOCK
+    RELOCATING
+}
+
+' =========================
+' Relationships
+' =========================
+SmartMoveCentralController "1" *-- "*" Vehicle
+SmartMoveCentralController --> AuditService
+SmartMoveCentralController --> ManualJSONPersistence
+
+TelemetryProcessor --> TelemetryQueue
+TelemetryProcessor --> SmartMoveCentralController
+
+Vehicle --> VehicleType
+Vehicle --> VehicleState
+
+TelemetryQueue o-- TelemetryData
+TelemetryProcessor ..> TelemetryData
+
+' =========================
+' Persistence Artifacts
+' =========================
+artifact "vehicles.json" <<file>>
+artifact "audit_log.csv" <<file>>
+
+ManualJSONPersistence ..> "vehicles.json"
+AuditService ..> "audit_log.csv"
+SmartMoveCentralController ..> CityRegulation
+@enduml
